@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<meta content="width=device-width, initial-scale=1" name="viewport">
+
+<style>
+ p {	margin: 2px 2px;	text-align: center;	font-size: xx-large;   }	
+ #container{
+	background-color: skyblue;
+	width:508px;
+	height:auto;
+	margin:3px 0;
+	border:1px solid black;
+	font-size: large;
+	text-align:center;
+	}
+ .float-child{
+	background-image: url("frog.bmp");
+	height:170px;
+	width:250px;
+	margin:0px 0px;
+	border:1px solid black;
+    border-radius: 3px;
+    padding: 1px;
+	font-size: large;
+	float: left;
+
+	text-align:left;
+	font-weight:bold;
+	}
+.Amps-Box{
+	background-image: url("GreenKelly.bmp");
+	height:170px;
+	width:504px;
+	margin:0px 0px;
+	border:1px solid black;
+    border-radius: 3px;
+    padding: 1px;
+	font-size: large;
+	float: left;
+
+	text-align:center;
+	font-weight:bold;
+	}
+ #bulb-background {
+	background-color: #333;
+	height: 170px;
+    width: 123px;
+    margin: 0px 0px;
+	border:1px solid black;
+    border-radius: 3px;
+    padding: 1px;
+	font-size: large;
+	float: left;
+	text-align: center;
+	color: #43f908;
+    }
+
+ .bulb {
+    background-color: #111;
+    height: 12px;
+    width: 12px;
+    border-radius: 50%;
+    margin: 2px auto;
+	font-size: large;
+	text-align: center;
+   }
+ 
+ .button {
+    background-color: gray;
+	width: 100px;
+    margin: 4px 4px;
+    border-radius: 5px;
+    padding: 1px;
+	font-size: normal;
+	text-align: center;
+	color: white;
+	cursor: pointer;
+    }
+ .slider {
+  width: 325px; /* Full-width */
+ }
+
+</style>
+<script type="text/javascript" src="mqttws31.min.js"></script> <! --The Paho JavaScript Client is an MQTT browser-based client library written in Javascript that uses WebSockets to connect to an MQTT Broker. -->
+<script >
+/// yourserial and replace with your venus serial number
+var topic = "N/yourserial/vebus/261/#";
+var topic2 = "esp45/#";
+
+var hostname = "venus.local"  //"192.168.0.22";
+var port = 9001;
+var clientId = "WebId";
+clientId += new Date().getUTCMilliseconds();;
+
+mqttClient = new Paho.MQTT.Client(hostname, port, clientId);
+mqttClient.onMessageArrived = MessageArrived;
+mqttClient.onConnectionLost = ConnectionLost;
+Connect();
+
+/*Initiates a connection to the MQTT broker*/
+function Connect(){
+	mqttClient.connect({
+	onSuccess: Connected,
+	onFailure: ConnectionFailed,
+	keepAliveInterval: 10,
+	});
+}
+
+/*Callback for successful MQTT connection */
+function Connected() {
+	console.log("Connected to broker");
+	mqttClient.subscribe(topic);
+	mqttClient.subscribe(topic2);
+/* Publish a Message*/
+var msg = new Paho.MQTT.Message(clientId);
+msg.destinationName = "R/yourserial/system/0/Serial";
+msg.qos = 0;
+mqttClient.send(msg);
+}
+
+/*Callback for failed connection*/
+function ConnectionFailed(res) {
+	console.log("Connect failed:" + res.errorMessage);
+}
+
+/*Callback for lost connection*/
+function ConnectionLost(res) {
+	if (res.errorCode !== 0) {
+		console.log("Connection lost:" + res.errorMessage);
+		Connect();
+		}
+}
+
+function limitbutton(clickvalue){
+/* Publish CurrentLimit*/
+clickvalue ='{"value":' + clickvalue +'}';
+var msg = new Paho.MQTT.Message(clickvalue);
+msg.destinationName = "W/yourserial/vebus/261/Ac/ActiveIn/CurrentLimit";
+msg.qos = 1;
+mqttClient.send(msg);
+ }
+ 
+ 
+/*Callback for incoming message processing */
+function MessageArrived(message) {
+//console.log(message.destinationName +" : " + message.payloadString);
+	var topic1 = message.destinationName.split("/");
+console.log(topic1[4]);
+//=================ESP45================
+
+   if(	topic1[0]=="esp45"){
+   var	DivId=(topic1[1]);
+   	var num=message.payloadString;
+ 	if(topic1[1] == "waterlevel"){
+	num = Math.round(num  * 100 * 0.00675);
+	num = 58.00-num/100;
+	document.getElementById(DivId).innerHTML=DivId  +": "+num+ " in`s";
+	num = Math.round(num  * 100 * 2.174);
+	num = num/100;
+	
+	document.getElementById("LevelPer").innerHTML=DivId  +": "+ num  + " %";
+	return
+	}
+	num = Math.round(num  * 100 );
+	num = num/100;
+ console.log(DivId + " : "+num);
+ if(topic1[1] == "Reservoir"){
+ if(num == 0){
+	return
+	}else {
+	var today = new Date();
+	document.getElementById(DivId).innerHTML="As of " + today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+	return
+	}
+  	}
+	document.getElementById(DivId).innerHTML=DivId  +": "+num;
+
+	}
+//================LEDS==================
+   if(	topic1[4]=="Leds"){
+   var	DivId=(topic1[4]+" "+topic1[5]);
+   	var num=message.payloadString.substring(10).replace('}', '') ;
+	var color1 = "#271a1a";
+	if(num =="1"){
+	 color1 = "#43f908";
+	}
+	if(num =="2"){
+	 color1 = "rgb(25 254 254 / 1)";
+	}
+	document.getElementById(DivId).style.backgroundColor=color1;
+ }
+//================DC====================	
+	if(topic1[4]=="Dc"){
+	var	DivId=(topic1[4]+" "+topic1[6]);
+	var num=message.payloadString.substring(10).replace('}', '') ;
+	num = Math.round(num * 10);
+	num = num/10;	
+	document.getElementById(DivId).innerHTML=DivId + " : "+num;
+  	}
+//================AC====================	
+   if(topic1[6]=="L1"||topic1[7]=="CurrentLimit"){
+	var	DivId=(topic1[5]+" "+topic1[6]+" "+topic1[7]);
+	var num=message.payloadString.substring(10).replace('}', '') ;
+	num = Math.round(num * 10);
+	num = num/10;	
+	document.getElementById(DivId).innerHTML=DivId + " : "+num;
+  	}
+ }
+
+//=================KEEP alive Message====
+setInterval(function(){ 
+	var msg = new Paho.MQTT.Message(clientId);
+	msg.destinationName = "R/yourserial/system/0/Serial";
+	msg.qos = 0;
+	mqttClient.send(msg);
+	}, 15000);//runs every 15 seconds
+ 	
+</script>
+	
+<title>Venus live update</title>
+</head>
+<body>
+<div id="container">
+ <h1 style="text-align:center">Power System</h1>
+ <div>   <div id="bulb-background">
+        Mains<div id="Leds Mains" class="bulb"></div>
+        Absorption<div id="Leds Absorption" class="bulb"></div>
+        Bulk<div id="Leds Bulk" class="bulb"></div>
+        Float<div id="Leds Float" class="bulb"></div> 
+	</div>
+    <div id="bulb-background">
+        Inverter<div id="Leds Inverter" class="bulb"></div>
+        LowBattery<div id="Leds LowBattery" class="bulb"></div>
+        Overload<div id="Leds Overload" class="bulb"></div>
+        Temperature<div id="Leds Temperature" class="bulb"></div>
+    </div>
+ </div>
+ <div id="containerlimit"class="float-child">
+  <P>DC</P>
+  <div id="Dc Current" class="outboxs"></div>
+  <div id="Dc Power" class="outboxs"></div>
+  <div id="Dc Voltage" class="outboxs"></div>
+  <div id="Dc MaxChargeCurrent" class="outboxs"></div>
+  <div id="Dc Temperature" class="outboxs"></div>
+ </div>
+ <div id="containerActiveIn"class="float-child">
+  <P>AC Input</P>
+  <div id="ActiveIn L1 V" class="outboxs"></div>
+  <div id="ActiveIn L1 I" class="outboxs"></div>
+  <div id="ActiveIn L1 P" class="outboxs"></div>
+  <div id="ActiveIn L1 S" class="outboxs"></div>
+  <div id="ActiveIn L1 F" class="outboxs"></div>
+ </div>
+ <div id="containerOut"class="float-child">
+  <P>AC Output</P>
+  <div id="Out L1 V" class="outboxs"></div>
+  <div id="Out L1 I" class="outboxs"></div>
+  <div id="Out L1 P" class="outboxs"></div>
+  <div id="Out L1 S" class="outboxs"></div>
+  <div id="Out L1 F" class="outboxs"></div>
+ </div>
+  
+ <div id="containerlevel"class="float-child">
+ <P>Reservoir</P>
+ <div id="Reservoir" class="outboxs" style="text-align: center">NA</div>
+ <div id="waterlevel" class="outboxs"></div>
+ <div id="LevelPer" class="outboxs"></div>
+ <div id="battery" class="outboxs"></div>
+ </div>
+ <div id="containerlevel"class="float-child">
+ <P>Water Wheel</P>
+ <h2><div id="Amps" class="outboxs"></div></h2>
+ <div id="AmpsOnline" class="outboxs" hidden="ture" ></div>
+ </div>
+
+
+  <div id="CurrentLimiter"class="Amps-Box">
+  <p>CurrentLimiter</p>
+  <div id="In 1 CurrentLimit" class="outboxs"></div>
+  <div id="In 2 CurrentLimit" class="outboxs" hidden="ture"></div>
+  <input type="button" class="button" onclick="limitbutton(44.5)" value="2 Nozzles 44.5">
+  <input type="button" class="button" onclick="limitbutton(42.5)" value="2 Nozzles 42.5">
+  <input type="button" class="button" onclick="limitbutton(40.5)" value="2 Nozzles 40.5">
+  <input type="button" class="button" onclick="limitbutton(35.5)" value="2 Nozzles 35.5">
+  <input type="button" class="button" onclick="limitbutton(30.5)" value="2 Nozzles 30.5">
+  <input type="button" class="button" onclick="limitbutton(27.5)" value="2 Nozzles 27.5">
+  <input type="button" class="button" onclick="limitbutton(25.5)" value="1 Nozzles 25.5">
+  <input type="button" class="button" onclick="limitbutton(22.5)" value="1 Nozzles 22.5">
+  <input type="range" min="18" max="50" value="40" class="slider" id="myRange">
+  <input id="var-amps" type="button" class="button" onclick="limitbutton(slider.value)" value="Enter">
+
+
+
+  </div>
+
+
+</div>
+<script>
+var slider = document.getElementById("myRange");
+var output = document.getElementById("demo");
+document.getElementById("var-amps").value = slider.value;
+slider.oninput = function() {
+  document.getElementById("var-amps").value =  this.value;
+}
+</script>
+
+</body>
+</html>
